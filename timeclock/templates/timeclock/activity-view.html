@@ -1,0 +1,15 @@
+<h1>User Activity</h1>
+
+
+{% if object %}
+    <h1>Currently: {{ object.get_activity_display }} </h1>
+    <p>Updated: {{ object.timeStamp }} </p>
+{% endif %}
+    
+
+<form action="" method="post"> 
+    {% csrf_token %}
+
+    <input type="submit" value="Do Activity" />
+    
+</form>
