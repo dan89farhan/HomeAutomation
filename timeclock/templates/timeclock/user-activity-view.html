@@ -1,0 +1,12 @@
+<h1>All Activity</h1>
+
+<ul>
+    {% for act in all_activity %}
+    <li>
+
+        {{ act.user.username }} - {{ act.activity }} - {{ act.timeStamp | timesince}}
+
+
+    </li>
+    {% endfor %}
+</ul>

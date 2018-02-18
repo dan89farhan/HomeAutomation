@@ -2,6 +2,14 @@ from django.db import models
 from django.conf import settings
 
 from django.core.exceptions import ValidationError
+
+from django.conf import settings
+
+from django.utils import timezone
+
+from datetime import timedelta, datetime, time
+
+
 # Create your models here.
 
 
@@ -11,26 +19,65 @@ from django.core.exceptions import ValidationError
 
 # 3.In and Out per Day
 
-
+ACTIVITY_TIME_DELTA = getattr(settings, "ACTIVITY_TIME_DELTA", timedelta(minutes = 1))
 
 USER_ACTIVITY_CHOICES = [
     ('checkin', 'Check In'),
     ('checkout', 'Check Out')
 ]
 
+class UserActivityQuerySet(models.query.QuerySet):
+
+    def today(self):
+        now = timezone.now()
+        today_start = timezone.make_aware(datetime.combine(now, time.min))
+        today_end = timezone.make_aware(datetime.combine(now, time.max))
+        return self.filter(timeStamp__gte=today_start).filter(timeStamp__lte=today_end)
+
+    def checkin(self):
+        return self.filter(activity = 'checkin')
+
+    def checkout(self):
+        return self.filter(activity = 'checkout')
+
+    def current(self, user=None):
+        if user is None:
+            return self
+        return self.filter(user=user).order_by('-timestamp').first()
+
+
 class UserActivityManager(models.Manager):
 
+    def get_queryset(self):
+        return UserActivityQuerySet(self.model, using=self._db)
+
+    def checkin(self):
+        return self.get_queryset().checkin()
+
+    def checkout(self):
+        return self.get_queryset().checkout()
     def current(self, user = None):
+        
         if user is None:
             return None
-        current_obj = self.get_queryset().filter(user=user).order_by('-timeStamp').first()
+        current_obj = self.get_queryset().current(user)
+        
         return current_obj
 
-    def toggle(self, user):
+    def toggle(self, user = None):
+        if user is None:
+            return None
+        
         last_item = self.current(user)
         
         activity = 'checkin'
         if last_item is not None:
+            
+            now = timezone.now()
+            diff = last_item.timeStamp + ACTIVITY_TIME_DELTA
+            if diff > now:
+                return None
+
             if last_item.activity == 'checkin':
                 activity = 'checkout'
 
@@ -58,12 +105,20 @@ class UserActivity(models.Model):
     class Meta:
         verbose_name = 'Activity'
         verbose_name_plural = 'User Activities'
-
+    @property
     def next_activity(self):
         next = 'Check In'
         if self.activity == 'checkin':
             next = 'Check Out'
         return next
+
+    @property
+    def current(self):
+        current= 'Checked Out'
+        if self.activity == 'checkin':
+            current = 'Checked In'
+        return current
+        
 
     def clean(self, *args, **kwargs):
         if self.user:
